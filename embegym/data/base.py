@@ -1,4 +1,6 @@
-import pickle, collections.abc, abc
+import pickle
+import collections.abc
+import abc
 
 
 class BaseCorpus(object):

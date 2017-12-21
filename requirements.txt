@@ -1,4 +1,7 @@
 nltk
 numpy
+scipy
 gensim
-ujson
+smart_open
+pandas
+joblib
