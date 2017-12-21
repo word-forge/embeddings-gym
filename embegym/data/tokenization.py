@@ -2,6 +2,8 @@ import nltk
 import re
 import abc
 
+nltk.download('punkt')
+nltk.download('stopwords')
 
 _WORD_TOKENIZER_IMPL = nltk.tokenize.WordPunctTokenizer()
 _SENT_SPLITTER_IMPL = nltk.data.load('tokenizers/punkt/english.pickle')

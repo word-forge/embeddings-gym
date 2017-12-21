@@ -56,7 +56,7 @@ class BaseWordSimCorrEvaluator(BaseEvaluator):
                  for column in self._numeric_columns }
 
 
-_SIM_LEX_RESOURCE_FILE = 'datasets/SimLex-999.txt.gz'
+_SIM_LEX_RESOURCE_FILE = 'datasets/similarities/SimLex-999.txt.gz'
 
 
 class SimLex999(BaseWordSimCorrEvaluator):
