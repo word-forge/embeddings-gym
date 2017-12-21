@@ -1,2 +1,1 @@
-def identity_func(x):
-    return x
+from . import io, loader
