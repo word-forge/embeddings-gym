@@ -59,6 +59,14 @@ class BaseModel(object):
         pass
 
     @abc.abstractmethod
+    def known_words(self):
+        """
+        Get a list of all known words
+        :return: list of str
+        """
+        pass
+
+    @abc.abstractmethod
     def get_most_similar(self, vector, k=10, *args, **kwargs):
         """
         Retrieve k most similar words for the given vector.

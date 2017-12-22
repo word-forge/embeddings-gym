@@ -10,7 +10,6 @@ from .base import BaseEvaluator
 
 
 def _normed_distance_to_similarity(f):
-    @functools.wraps
     def _impl(a, b):
         return 1 - f(a, b)
     return _impl
@@ -33,8 +32,8 @@ class BaseWordSimCorrEvaluator(BaseEvaluator):
 
         assert self._gold_data.index.nlevels == 2
         self._unique_words = set(itertools.chain.from_iterable(self._gold_data.index.levels))
-        self._numeric_columns = [col for col in self._unique_words.columns
-                                 if numpy.issubdtype(self._unique_words[col].dtype, numpy.numeric)]
+        self._numeric_columns = [col for col in self._gold_data.columns
+                                 if numpy.issubdtype(self._gold_data[col].dtype, (float, int))]
 
         assert (distance is None) ^ (similarity is None), 'Only one of distance and similarity must be specified'
         if distance:
@@ -45,7 +44,9 @@ class BaseWordSimCorrEvaluator(BaseEvaluator):
         self._correlation = correlation
 
     def __call__(self, model):
-        word2vector = {model[w] for w in self._unique_words if w in model}
+        word2vector = {w: model.get_word_vector(w)
+                       for w in self._unique_words
+                       if w in model}
         known_word_pairs = [(a, b)
                             for a, b in self._gold_data.index
                             if a in word2vector and b in word2vector]

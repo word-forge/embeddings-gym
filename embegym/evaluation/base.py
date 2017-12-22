@@ -33,7 +33,7 @@ class Evaluation(object):
         models_to_evaluate = collections.OrderedDict()
         models_to_evaluate.update(('model_{}'.format(i), m)
                                   for i, m in enumerate(models))
-        models_to_evaluate.udpate(named_models)
+        models_to_evaluate.update(named_models)
 
         flat_eval_results = joblib.Parallel(n_jobs=self._n_jobs)(
             joblib.delayed(_call_evaluation)(eval_title, evaluator, model_title, model)

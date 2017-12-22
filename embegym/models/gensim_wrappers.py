@@ -31,16 +31,19 @@ class GensimKeyedVectorsMixin(object):
         return self._impl[word]
 
     def __contains__(self, word):
-        return word in self._impl.vw.vocab
+        return word in self._impl.wv.vocab
 
     def vector_size(self):
-        return self._impl.vw.vector_size
+        return self._impl.wv.syn0.shape[1]
 
     def export(self):
-        return self._impl.vw.index2word, [self._impl.vw.syn0]
+        return list(self._impl.wv.index2word), [self._impl.wv.syn0]
+
+    def known_words(self):
+        return list(self._impl.wv.index2word)
 
     def get_most_similar(self, vector, k=10, *args, **kwargs):
-        return self._impl.vw.similar_by_vector(vector, topn=k, *args, **kwargs)
+        return self._impl.wv.similar_by_vector(vector, topn=k, *args, **kwargs)
 
 
 class GensimKeyedVectors(GensimKeyedVectorsMixin, BaseModel):
@@ -63,21 +66,25 @@ class GensimBaseTrainableModel(GensimKeyedVectorsMixin, TrainableModel):
         self._impl.train(data, **self._train_kwargs)
 
 
-def import_pretrained_word2vec(in_file, out_file, mmap='r'):
+def import_pretrained_word2vec(in_file, out_file, mmap='r', binary=True, **kwargs):
     try:
-        return GensimKeyedVectorsMixin.load(out_file, mmap=mmap)
+        return GensimKeyedVectors.load(out_file, mmap=mmap)
     except IOError:
         pass
-    model = GensimKeyedVectorsMixin(KeyedVectors.load_word2vec_format(in_file))
+    model = GensimKeyedVectors(KeyedVectors.load_word2vec_format(in_file,
+                                                                 binary=binary,
+                                                                 **kwargs))
     model.save(out_file)
-    return GensimKeyedVectorsMixin.load(out_file, mmap=mmap)
+    return GensimKeyedVectors.load(out_file, mmap=mmap)
 
 
 def import_pretrained_fasttext(in_file, out_file, mmap='r'):
     try:
-        return GensimKeyedVectorsMixin.load(out_file, mmap=mmap)
+        return GensimKeyedVectors.load(out_file, mmap=mmap)
     except IOError:
         pass
-    model = GensimKeyedVectorsMixin(FastText.load_fasttext_format(in_file))
+    ft = FastText.load_fasttext_format(in_file)
+    ft.init_sims(replace=True)
+    model = GensimKeyedVectors(ft.wv)
     model.save(out_file)
-    return GensimKeyedVectorsMixin.load(out_file, mmap=mmap)
+    return GensimKeyedVectors.load(out_file, mmap=mmap)
