@@ -15,12 +15,16 @@ def _normed_distance_to_similarity(f):
     return _impl
 
 
+def spearmanr(a, b):
+    return scipy.stats.spearmanr(a, b)[0]
+
+
 class BaseWordSimCorrEvaluator(BaseEvaluator):
     def __init__(self,
                  gold_data,
                  distance=scipy.spatial.distance.cosine,
                  similarity=None,
-                 correlation=scipy.stats.spearmanr):
+                 correlation=spearmanr):
         """
         :param gold_data: pandas.DataFrame with 2-level index (two words) and columns representing gold judgements
         :param distance: a function that takes two vectors and outputs a float

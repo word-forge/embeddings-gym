@@ -8,7 +8,7 @@ nltk.download('stopwords')
 _WORD_TOKENIZER_IMPL = nltk.tokenize.WordPunctTokenizer()
 _SENT_SPLITTER_IMPL = nltk.data.load('tokenizers/punkt/english.pickle')
 
-DEFAULT_GOOD_TOKEN_RE = re.compile(r'\W+')
+DEFAULT_GOOD_TOKEN_RE = re.compile(r'^\w+$')
 
 
 def default_token_normalizer(t):

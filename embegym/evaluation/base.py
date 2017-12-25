@@ -44,7 +44,7 @@ class Evaluation(object):
         for eval_title, model_title, cur_res in flat_eval_results:
             if isinstance(cur_res, collections.abc.Mapping):
                 for val_title, val in cur_res.items():
-                    full_eval_results[model_title][(eval_title, val_title)][model_title] = val
+                    full_eval_results[model_title][(eval_title, val_title)] = val
             else:
                 full_eval_results[model_title][(eval_title, '')] = cur_res
 
