@@ -13,7 +13,7 @@ def fetch_wiki_texts(in_file,
     return ((title, clean_text, page_id)
             for title, text, page_id in extract_pages(bz2.BZ2File(in_file), namespaces_to_filter)
             for clean_text in (filter_wiki(text),)
-            if clean_text.strip() >= min_text_length)
+            if len(clean_text.strip()) >= min_text_length)
 
 
 class Wikipedia(BaseFileCorpus):

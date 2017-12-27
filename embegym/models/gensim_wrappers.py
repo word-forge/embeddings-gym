@@ -1,5 +1,6 @@
 from gensim.models.keyedvectors import KeyedVectors
 from gensim.models.fasttext import FastText
+from gensim.models.word2vec import Word2Vec
 from .base import BaseModel, TrainableModel
 from embegym.utils.io import save_meta, try_load_meta
 from embegym.utils.loader import load_class, get_fully_qualified_class_name, get_fully_qualified_name
@@ -63,7 +64,28 @@ class GensimBaseTrainableModel(GensimKeyedVectorsMixin, TrainableModel):
         self._impl.reset_weights()
 
     def train(self, data):
-        self._impl.train(data, **self._train_kwargs)
+        self._impl.build_vocab(data)
+        self._impl.train(data,
+                         total_examples=len(data),
+                         **self._train_kwargs)
+
+
+class GensimWord2Vec(GensimBaseTrainableModel):
+    DEFAULT_CTOR_ARGS = dict(size=100,
+                             max_vocab_size=300000,
+                             min_count=5,
+                             workers=-1,
+                             window=5,
+                             sg=0,
+                             hs=0,
+                             negative=5,
+                             iter=15)
+    DEFAULT_TRAIN_ARGS = dict(epochs=15)
+
+    def __init__(self, ctor_args=DEFAULT_CTOR_ARGS, **train_kwargs):
+        real_train_kwargs = dict(self.DEFAULT_TRAIN_ARGS)
+        real_train_kwargs.update(train_kwargs)
+        super(GensimWord2Vec, self).__init__(Word2Vec(**ctor_args), **real_train_kwargs)
 
 
 def import_pretrained_word2vec(in_file, out_file, mmap='r', binary=True, **kwargs):

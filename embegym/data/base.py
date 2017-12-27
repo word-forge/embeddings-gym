@@ -2,10 +2,15 @@ import pickle
 import collections.abc
 import abc
 
+from embegym.utils.io import save_meta, try_load_meta
+
 
 class BaseCorpus(object):
     def __iter__(self):
         return iter(self._generate_samples())
+
+    def __len__(self):
+        return self.meta.get('samples_count', None)
 
     @abc.abstractmethod
     def _generate_samples(self):
@@ -15,6 +20,7 @@ class BaseCorpus(object):
 class BaseFileCorpus(BaseCorpus):
     def __init__(self, filename):
         self.filename = filename
+        self.meta = try_load_meta(self.filename)
 
 
 class LineCorpus(BaseFileCorpus):
@@ -39,9 +45,12 @@ class PickleCorpus(BaseFileCorpus):
 
 
 def cache_corpus_to_pickle(corpus, target_file):
+    samples_count = 0
     with open(target_file, 'wb') as f:
         for sample in corpus:
             pickle.dump(sample, f, pickle.HIGHEST_PROTOCOL)
+            samples_count += 1
+    save_meta(dict(samples_count=samples_count), target_file)
 
 
 def iter_sliding_window(seq, left_ctx_size, right_ctx_size):
