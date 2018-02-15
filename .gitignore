@@ -103,4 +103,4 @@ ENV/
 .idea/
 run_container.sh
 certs/
-models
+__pycache__
