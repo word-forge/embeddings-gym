@@ -1,3 +1,4 @@
+import multiprocessing
 from gensim.models.keyedvectors import KeyedVectors
 from gensim.models.fasttext import FastText
 from gensim.models.word2vec import Word2Vec
@@ -72,20 +73,25 @@ class GensimBaseTrainableModel(GensimKeyedVectorsMixin, TrainableModel):
 
 class GensimWord2Vec(GensimBaseTrainableModel):
     DEFAULT_CTOR_ARGS = dict(size=100,
-                             max_vocab_size=300000,
+                             max_vocab_size=500000,
                              min_count=5,
-                             workers=-1,
+                             workers=max(1, multiprocessing.cpu_count()-1),
                              window=5,
-                             sg=0,
+                             sg=1,
                              hs=0,
                              negative=5,
-                             iter=15)
-    DEFAULT_TRAIN_ARGS = dict(epochs=15)
+                             iter=5,
+                             compute_loss=True)
+    DEFAULT_TRAIN_ARGS = dict(epochs=5)
 
     def __init__(self, ctor_args=DEFAULT_CTOR_ARGS, **train_kwargs):
+        if isinstance(ctor_args, dict):
+            impl = Word2Vec(**ctor_args)
+        else:
+            impl = ctor_args
         real_train_kwargs = dict(self.DEFAULT_TRAIN_ARGS)
         real_train_kwargs.update(train_kwargs)
-        super(GensimWord2Vec, self).__init__(Word2Vec(**ctor_args), **real_train_kwargs)
+        super(GensimWord2Vec, self).__init__(impl, **real_train_kwargs)
 
 
 def import_pretrained_word2vec(in_file, out_file, mmap='r', binary=True, **kwargs):

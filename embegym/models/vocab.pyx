@@ -1,3 +1,5 @@
+# cython: profile=False
+
 import collections
 
 
@@ -20,7 +22,7 @@ class Vocabulary(object):
         self.idx2word = []
         self.words = collections.defaultdict(int)
 
-    def update(self, *new_words):
+    def update(self, new_words):
         vocab = self.words
         for w in new_words:
             vocab[w] += 1
@@ -64,3 +66,12 @@ class Vocabulary(object):
 
     def __getitem__(self, word):
         return self.words[word]
+
+    def __len__(self):
+        return len(self.words)
+
+
+def build_vocab_from_dicts_default(vocab, data):
+    for sample in data:
+        vocab.update((sample['current'],))
+    vocab.finalize()

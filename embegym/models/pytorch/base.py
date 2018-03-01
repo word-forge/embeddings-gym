@@ -2,16 +2,16 @@ import logging
 import abc
 import numpy
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 
 
-from ..base import TrainableModel
-from ..vocab import Vocabulary
+from embegym.models.base import TrainableModel
+from embegym.models.vocab import Vocabulary, build_vocab_from_dicts_default
 from embegym.utils.net.base import run_network_over_data, np2tensor, module_on_cuda
-from embegym.utils import copy_with_prefix
+from embegym.utils.net.batch_utils import infinite_iter
+from embegym.utils import copy_with_prefix, get_tqdm
 from embegym.utils.io import save_meta, try_load_meta
-
 
 
 logger = logging.getLogger()
@@ -26,30 +26,37 @@ def _default_init(module):
         module.weight.data.normal_(0.0, 1.0)
 
 
-def const_lr(value=1e-3):
+def const_lr(epoch, value=1e-1):
     return value
+
+
+def exp_lr(epoch, start_value=0.1, decay=1-1e-2):
+    return start_value * (decay ** epoch)
 
 
 class PytorchBaseModel(TrainableModel):
     def __init__(self,
-                 vector_size=300,
+                 vector_size=100,
                  vocabulary=None,
                  criterion=F.binary_cross_entropy,
-                 epochs=10,
-                 batch_size=128,
+                 epochs=50,
+                 batch_size=2048000,
+                 max_batches_per_epoch=100000,
                  optimizer_cls=torch.optim.SparseAdam,
-                 lr_getter=const_lr,
-                 vocab_max_words_final=300000,
+                 lr_getter=exp_lr,
+                 vocab_max_words_final=500000,
                  vocab_max_words_training=1000000,
                  vocab_min_count=5,
                  cuda=torch.cuda.is_available(),
-                 verbose=1):
+                 verbose=1,
+                 clip_gradients=None):
         self._trained = False
         self._vector_size = vector_size
         self._vocabulary = vocabulary
         self._criterion = criterion
         self._epochs = epochs
         self._batch_size = batch_size
+        self._max_batches_per_epoch = max_batches_per_epoch
         self._optimizer_cls = optimizer_cls
         self._lr_getter = lr_getter
         self._vocab_max_words_final = vocab_max_words_final
@@ -57,7 +64,9 @@ class PytorchBaseModel(TrainableModel):
         self._vocab_min_count = vocab_min_count
         self._cuda = cuda
         self._verbose = verbose
+        self._clip_gradients = clip_gradients
         self._model = None
+        self.history = None
 
     @classmethod
     def load(cls, path, *args, **kwargs):
@@ -68,9 +77,10 @@ class PytorchBaseModel(TrainableModel):
 
     def save(self, path):
         model = self._model
-        self._model = None
         torch.save(model, path)
+        self._model = None
         save_meta(vars(self), path)
+        self._model = model
 
     def reinitialize(self):
         self._model.apply(_default_init)
@@ -83,9 +93,9 @@ class PytorchBaseModel(TrainableModel):
             new_vocab = False
 
         if new_vocab or update_existing_vocabulary:
-            for sample in data:
-                self._update_vocab(sample)
-            self._vocabulary.finalize()
+            logger.info('Updating vocab')
+            self._update_vocab(data)
+            logger.info('Done with vocab')
 
         if self._model is None:
             self._model = self._make_model()
@@ -94,40 +104,52 @@ class PytorchBaseModel(TrainableModel):
             else:
                 self._model.cpu()
 
-        history = []
+        self.history = []
 
-        for epoch_i in range(self._epochs):
-            if self._verbose > 0:
-                logger.info('Epoch {}', epoch_i)
-            optimizer = self._optimizer_cls(self._model.parameters(),
-                                            lr=self._lr_getter(epoch_i))
+        epochs_gen = range(self._epochs)
+        if self._verbose > 0:
+            epochs_gen = get_tqdm(epochs_gen, desc='Epochs')
 
-            train_metrics = run_network_over_data(self._make_batch_generator(data),
-                                                  self._model,
-                                                  self._criterion,
-                                                  optimizer=optimizer,
-                                                  verbose=self._verbose)
-            cur_hist = dict()
-            copy_with_prefix(cur_hist, train_metrics, 'train_')
+        batch_gen = iter(self._make_batch_generator(infinite_iter(data)))
+        try:
+            for epoch_i in epochs_gen:
+                if self._verbose > 0:
+                    logger.info('Epoch {}'.format(epoch_i))
+                optimizer = self._optimizer_cls(self._model.parameters(),
+                                                lr=self._lr_getter(epoch_i))
 
-            if self._verbose > 0:
-                logger.info('Train loss', epoch_i)
-            if val_data:
-                val_metrics = run_network_over_data(data,
-                                                    self._model,
-                                                    self._criterion,
-                                                    verbose=self._verbose)
-                copy_with_prefix(cur_hist, val_metrics, 'val_')
+                train_metrics = run_network_over_data(batch_gen,
+                                                      self._model,
+                                                      self._criterion,
+                                                      optimizer=optimizer,
+                                                      max_batches=self._max_batches_per_epoch,
+                                                      verbose=self._verbose,
+                                                      clip_gradients=self._clip_gradients)
+                cur_hist = dict()
+                copy_with_prefix(cur_hist, train_metrics, 'train_')
 
-            history.append(cur_hist)
+                if self._verbose > 0:
+                    logger.info('Train loss {}'.format(train_metrics['loss']))
+                if val_data:
+                    val_metrics = run_network_over_data(data,
+                                                        self._model,
+                                                        self._criterion,
+                                                        verbose=self._verbose)
+                    copy_with_prefix(cur_hist, val_metrics, 'val_')
+
+                self.history.append(cur_hist)
+        except KeyboardInterrupt:
+            logging.info('Training interrupted')
+            pass
+        self._trained = True
 
     def _create_vocabulary(self):
         return Vocabulary(max_words_final=self._vocab_max_words_final,
                           min_count=self._vocab_min_count,
                           truncate_at=self._vocab_max_words_training)
 
-    def _update_vocab(self, sample):
-        self._vocabulary.update(sample['current'])
+    def _update_vocab(self, data):
+        build_vocab_from_dicts_default(self._vocabulary, data)
 
     @abc.abstractmethod
     def _make_model(self):
@@ -153,12 +175,17 @@ class PytorchBaseModel(TrainableModel):
 
     def get_word_vector(self, word, *args, **kwargs):
         assert word in self._vocabulary
-        return self._model.main_embeddings[self._vocabulary[word].idx].data.cpu().numpy()
+        return self._model.main_embeddings.weight[self._vocabulary[word].idx].data.cpu().numpy()
 
     def get_most_similar(self, vector, k=10, *args, **kwargs):
-        vector = np2tensor(vector, cuda=module_on_cuda(self))
-        probs = torch.matmul(self._model.main_embeddings.data, vector).cpu().numpy()
-        best_idx = numpy.argpartition(-probs, k)[:k]
+        assert self._model, 'Model not trained!'
+        vector = Variable(np2tensor(vector, cuda=module_on_cuda(self._model)))
+        probs = F.cosine_similarity(self._model.main_embeddings.weight,
+                                    vector.unsqueeze(0).expand_as(self._model.main_embeddings.weight)).data.cpu().numpy()
+        if k < len(probs):
+            best_idx = numpy.argpartition(-probs, k)[:k]
+        else:
+            best_idx = numpy.argsort(-probs)
         result = [(self._vocabulary.idx2word[i], probs[i]) for i in best_idx]
         result.sort(key=lambda p: -p[1])
         return result
