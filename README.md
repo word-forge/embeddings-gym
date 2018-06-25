@@ -1,6 +1,6 @@
 # embeddings-gym
 
-**It's under active development, currently unusable!**
+**THE DEVELOPMENT STOPPED, PROJECT TRANSFERRED TO [VECTO](https://github.com/vecto-ai/vecto)**
 
 
 ## 1. Main Motivation
